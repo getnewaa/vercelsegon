@@ -1,0 +1,155 @@
+# Clone the empty repo
+git clone https://github.com/YOUR_USERNAME/kpi-dashboard.git
+cd kpi-dashboard
+
+# Create file structure
+mkdir -p src/components public
+touch package.json vercel.json src/index.js src/App.jsx \
+src/components/{Auth.jsx,Dashboard.jsx,KPIForm.jsx} \
+public/favicon.ico
+{
+  "name": "kpi-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "next": "^14.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-calendar": "^4.9.0"
+  }
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://your-railway-backend.up.railway.app/api/$1"
+    }
+  ]
+}
+import React from 'react';
+import ReactDOM from 'react-dom';
+import App from './App';
+
+ReactDOM.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+  document.getElementById('root')
+);
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import Auth from './components/Auth';
+import Dashboard from './components/Dashboard';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY
+);
+
+export default function App() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user || null);
+    });
+  }, []);
+
+  return (
+    <div className="container">
+      {!user ? <Auth supabase={supabase} /> : <Dashboard user={user} supabase={supabase} />}
+    </div>
+  );
+}
+export default function Auth({ supabase }) {
+  const handleLogin = async () => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: 'getu.mamo@segon-marill.com',
+      password: 'your-admin-password'
+    });
+    if (error) alert(error.message);
+  };
+
+  return (
+    <div className="auth">
+      <h1>KPI Dashboard</h1>
+      <button onClick={handleLogin}>Login with Segon-Marill Email</button>
+    </div>
+  );
+}
+import KPIForm from './KPIForm';
+
+export default function Dashboard({ user, supabase }) {
+  const [kpis, setKpis] = useState([]);
+
+  useEffect(() => {
+    const fetchKPIs = async () => {
+      const { data } = await supabase
+        .from('kpis')
+        .select('*')
+        .eq('created_by', user.id);
+      setKpis(data || []);
+    };
+    fetchKPIs();
+  }, [user]);
+
+  return (
+    <div>
+      <h1>Welcome, {user.email}</h1>
+      {user.email === 'getu.mamo@segon-marill.com' && (
+        <div className="admin-badge">ADMIN</div>
+      )}
+      <KPIForm supabase={supabase} userId={user.id} />
+      <div className="kpi-list">
+        {kpis.map(kpi => (
+          <div key={kpi.id} className="kpi-card">
+            <h3>{kpi.title}</h3>
+            <p>Status: {kpi.status}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+import { useState } from 'react';
+import Calendar from 'react-calendar';
+
+export default function KPIForm({ supabase, userId }) {
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState(new Date());
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await supabase.from('kpis').insert([{
+      title,
+      created_by: userId,
+      week_start: date,
+      status: 'draft'
+    }]);
+    setTitle('');
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Enter KPI"
+        required
+      />
+      <Calendar 
+        onChange={setDate}
+        value={date}
+        minDate={new Date()}
+      />
+      <button type="submit">Submit KPI</button>
+    </form>
+  );
+}
+
+}
