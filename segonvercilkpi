@@ -1,70 +1,79 @@
-# Clone the empty repo
-git clone https://github.com/YOUR_USERNAME/kpi-dashboard.git
-cd kpi-dashboard
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  swcMinify: true,
+}
 
-# Create file structure
-mkdir -p src/components public
-touch package.json vercel.json src/index.js src/App.jsx \
-src/components/{Auth.jsx,Dashboard.jsx,KPIForm.jsx} \
-public/favicon.ico
+module.exports = nextConfig
 {
   "name": "kpi-dashboard",
+  "version": "0.1.0",
   "private": true,
-  "version": "1.0.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "next": "^14.1.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "next": "14.1.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "react-calendar": "^4.9.0"
+  },
+  "devDependencies": {
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.1.0"
   }
 {
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "https://your-railway-backend.up.railway.app/api/$1"
-    }
-  ]
+  "version": 2,
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install"
 }
-import React from 'react';
-import ReactDOM from 'react-dom';
-import App from './App';
-
-ReactDOM.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-  document.getElementById('root')
-);
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import Auth from './components/Auth';
-import Dashboard from './components/Dashboard';
+import Auth from '../components/Auth';
+import Dashboard from '../components/Dashboard';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_KEY
 );
 
-export default function App() {
+export default function Home() {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event, session) => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user || null);
-    });
+      setLoading(false);
+    };
+    getSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user || null);
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div className="container">
       {!user ? <Auth supabase={supabase} /> : <Dashboard user={user} supabase={supabase} />}
     </div>
   );
+}
+export default function handler(req, res) {
+  res.status(200).json({ message: 'KPI API is working!' });
 }
 export default function Auth({ supabase }) {
   const handleLogin = async () => {
@@ -82,74 +91,7 @@ export default function Auth({ supabase }) {
     </div>
   );
 }
-import KPIForm from './KPIForm';
-
-export default function Dashboard({ user, supabase }) {
-  const [kpis, setKpis] = useState([]);
-
-  useEffect(() => {
-    const fetchKPIs = async () => {
-      const { data } = await supabase
-        .from('kpis')
-        .select('*')
-        .eq('created_by', user.id);
-      setKpis(data || []);
-    };
-    fetchKPIs();
-  }, [user]);
-
-  return (
-    <div>
-      <h1>Welcome, {user.email}</h1>
-      {user.email === 'getu.mamo@segon-marill.com' && (
-        <div className="admin-badge">ADMIN</div>
-      )}
-      <KPIForm supabase={supabase} userId={user.id} />
-      <div className="kpi-list">
-        {kpis.map(kpi => (
-          <div key={kpi.id} className="kpi-card">
-            <h3>{kpi.title}</h3>
-            <p>Status: {kpi.status}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-import { useState } from 'react';
-import Calendar from 'react-calendar';
-
-export default function KPIForm({ supabase, userId }) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(new Date());
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    await supabase.from('kpis').insert([{
-      title,
-      created_by: userId,
-      week_start: date,
-      status: 'draft'
-    }]);
-    setTitle('');
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Enter KPI"
-        required
-      />
-      <Calendar 
-        onChange={setDate}
-        value={date}
-        minDate={new Date()}
-      />
-      <button type="submit">Submit KPI</button>
-    </form>
-  );
-}
-
+git add .
+git commit -m "Fixed Next.js structure"
+git push origin main
 }
